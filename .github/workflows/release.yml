@@ -1,0 +1,27 @@
+name: Build and release macOS app
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check tag matches app version
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          version=$(sed -n 's/.*CFBundleShortVersionString<\/key><string>\([^<]*\).*/\1/p' build.sh)
+          test "$RELEASE_TAG" = "v$version"
+      - name: Build, self-test and package
+        run: bash package.sh
+      - name: Publish download
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$RELEASE_TAG" dist/XAssistant-Mac-arm64.zip dist/SHA256SUMS \
+            --verify-tag --title "XAssistant Mac $RELEASE_TAG" \
+            --notes 'Apple Silicon · macOS 13+. Download XAssistant-Mac-arm64.zip, unzip, and move the app to ~/Applications. English/简体中文 can be selected in the app. Enable Input Monitoring after launch. This build is ad-hoc signed, not notarized; macOS may require Open Anyway in Privacy & Security. See README for terminal installation and permission troubleshooting.'

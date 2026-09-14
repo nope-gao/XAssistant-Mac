@@ -15,6 +15,7 @@ struct VideoJob: Codable {
     var testLabel: String? = nil
     var includeMouse: Bool? = nil
     var heatMode: String? = nil
+    var language: String? = nil
 }
 struct VideoFailure: Error, LocalizedError {
     var message: String
@@ -53,13 +54,13 @@ final class KeyboardMovie {
     let width=1920, height=1080
     let progressURL: URL
     init(layout: KeyboardLayout, progress: URL, includeMouse: Bool = true) throws {
-        guard let metal=MTLCreateSystemDefaultDevice() else { throw VideoFailure(message:"无法使用图形设备进行视频渲染。") }
+        guard let metal=MTLCreateSystemDefaultDevice() else { throw VideoFailure(message:L("无法使用图形设备进行视频渲染。", "No graphics device available for video rendering.")) }
         self.metal=metal
-        guard let queue=metal.makeCommandQueue() else {throw VideoFailure(message:"无法创建图形队列。")}
+        guard let queue=metal.makeCommandQueue() else {throw VideoFailure(message:L("无法创建图形队列。", "Could not create a graphics command queue."))}
         commandQueue=queue
         let depthDescriptor=MTLTextureDescriptor.texture2DDescriptor(pixelFormat:.depth32Float,width:width,height:height,mipmapped:false)
         depthDescriptor.usage = .renderTarget;depthDescriptor.storageMode = .private
-        guard let depth=metal.makeTexture(descriptor:depthDescriptor) else {throw VideoFailure(message:"无法创建深度缓冲区。")}
+        guard let depth=metal.makeTexture(descriptor:depthDescriptor) else {throw VideoFailure(message:L("无法创建深度缓冲区。", "Could not create a depth buffer."))}
         depthTexture=depth
         renderer=SCNRenderer(device:metal,options:nil)
         CVMetalTextureCacheCreate(nil,nil,metal,nil,&textureCache)
@@ -165,7 +166,7 @@ final class KeyboardMovie {
         var wrapped: CVMetalTexture?
         guard let cache=textureCache,
               CVMetalTextureCacheCreateTextureFromImage(nil,cache,buffer,nil,.bgra8Unorm,width,height,0,&wrapped)==kCVReturnSuccess,
-              let wrapped, let texture=CVMetalTextureGetTexture(wrapped),let command=commandQueue.makeCommandBuffer() else {throw VideoFailure(message:"无法创建视频纹理。")}
+              let wrapped, let texture=CVMetalTextureGetTexture(wrapped),let command=commandQueue.makeCommandBuffer() else {throw VideoFailure(message:L("无法创建视频纹理。", "Could not create a video texture."))}
         let pass=MTLRenderPassDescriptor()
         pass.depthAttachment.texture=depthTexture
         pass.depthAttachment.loadAction = .clear
@@ -179,7 +180,7 @@ final class KeyboardMovie {
         if let error=command.error {throw error}
         CVPixelBufferLockBaseAddress(buffer,[])
         defer {CVPixelBufferUnlockBaseAddress(buffer,[])}
-        guard let context=CGContext(data:CVPixelBufferGetBaseAddress(buffer),width:width,height:height,bitsPerComponent:8,bytesPerRow:CVPixelBufferGetBytesPerRow(buffer),space:CGColorSpaceCreateDeviceRGB(),bitmapInfo:CGBitmapInfo.byteOrder32Little.rawValue | CGImageAlphaInfo.premultipliedFirst.rawValue) else {throw VideoFailure(message:"无法创建文字绘图环境。")}
+        guard let context=CGContext(data:CVPixelBufferGetBaseAddress(buffer),width:width,height:height,bitsPerComponent:8,bytesPerRow:CVPixelBufferGetBytesPerRow(buffer),space:CGColorSpaceCreateDeviceRGB(),bitmapInfo:CGBitmapInfo.byteOrder32Little.rawValue | CGImageAlphaInfo.premultipliedFirst.rawValue) else {throw VideoFailure(message:L("无法创建文字绘图环境。", "Could not create a text drawing context."))}
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current=NSGraphicsContext(cgContext:context,flipped:false)
         defer {NSGraphicsContext.restoreGraphicsState()}
@@ -187,19 +188,20 @@ final class KeyboardMovie {
         func text(_ body:String,_ x:Double,_ y:Double,_ size:Double,_ bold:Bool=false) {
             (body as NSString).draw(at:NSPoint(x:x,y:y),withAttributes:[.font:NSFont.systemFont(ofSize:size,weight:bold ? .semibold:.regular),.foregroundColor:NSColor(calibratedWhite:0.12,alpha:1)])
         }
-        text((job.includeMouse ?? true) ? "键盘 + 鼠标 · 按动延时摄影" : "键盘 · 按动延时摄影",70,978,36,true)
+        text((job.includeMouse ?? true) ? L("键盘 + 鼠标 · 按动延时摄影", "Keyboard + mouse · Activity timelapse") : L("键盘 · 按动延时摄影", "Keyboard · Activity timelapse"),70,978,36,true)
         text("\(df.string(from:Date(timeIntervalSince1970:job.start)))  →  \(df.string(from:Date(timeIntervalSince1970:job.end)))",70,936,23)
         if let label=job.testLabel {text(label,1450,978,26,true)}
-        text("热力：蓝 → 黄 → 橙 → 红   \(fixedPeak == nil ? "动态上限" : "固定上限") \(peak) 次",1110,82,21)
-        text("未使用为灰色 · 按下时键帽下沉",1110,46,20)
-        text("原始时间  \(df.string(from:Date(timeIntervalSince1970:sourceTime)))",70,80,23)
-        text("已播放 \(seenPresses) 次按动  ·  \(String(format:"%g",job.speed))×  ·  空档已移除",70,42,22)
+        text(L("热力：蓝 → 黄 → 橙 → 红", "Heat: blue → yellow → orange → red") + "   " + (fixedPeak == nil ? L("动态上限", "Dynamic max") : L("固定上限", "Fixed max")) + " \(peak)",1050,82,20)
+        text(L("未使用为灰色 · 按下时键帽下沉", "Unused keys are gray · Pressed keys move down"),1110,46,20)
+        text(L("原始时间  \(df.string(from:Date(timeIntervalSince1970:sourceTime)))", "Recorded at  \(df.string(from:Date(timeIntervalSince1970:sourceTime)))"),70,80,23)
+        text(L("已播放 \(seenPresses) 次按动", "\(seenPresses) presses played") + "  ·  \(String(format:"%g",job.speed))×  ·  " + L("空档已移除", "Idle gaps removed"),70,42,22)
 
     }
     static func render(_ job: VideoJob) throws {
+        AppLanguage.renderLanguage = AppLanguage.resolve(job.language, preferred: Locale.preferredLanguages)
         let timeline=PlaybackTimeline(events:job.events,start:job.start,end:job.end,speed:job.speed,deviceID:job.deviceID,includeMouse:job.includeMouse ?? true)
-        guard timeline.pressCount>0 else {throw VideoFailure(message:"所选时间内没有可回放的按动事件。")}
-        guard let layout=loadLayouts()[job.layout] else {throw VideoFailure(message:"键盘布局不存在。")}
+        guard timeline.pressCount>0 else {throw VideoFailure(message:L("所选时间内没有可回放的按动事件。", "No replayable presses in the selected time range."))}
+        guard let layout=loadLayouts()[job.layout] else {throw VideoFailure(message:L("键盘布局不存在。", "Keyboard layout not found."))}
         let movie=try KeyboardMovie(layout:layout,progress:URL(fileURLWithPath:job.progress),includeMouse:job.includeMouse ?? true)
         if job.heatMode == "fixed" {
             var totals:[String:Int]=[:]
@@ -216,8 +218,8 @@ final class KeyboardMovie {
         input.expectsMediaDataInRealTime=false
         let attrs:[String:Any]=[kCVPixelBufferPixelFormatTypeKey as String:kCVPixelFormatType_32BGRA,kCVPixelBufferWidthKey as String:movie.width,kCVPixelBufferHeightKey as String:movie.height,kCVPixelBufferMetalCompatibilityKey as String:true,kCVPixelBufferIOSurfacePropertiesKey as String:[:],kCVPixelBufferCGImageCompatibilityKey as String:true,kCVPixelBufferCGBitmapContextCompatibilityKey as String:true]
         let adaptor=AVAssetWriterInputPixelBufferAdaptor(assetWriterInput:input,sourcePixelBufferAttributes:attrs)
-        guard writer.canAdd(input) else {throw VideoFailure(message:"无法创建 H.264 编码器。")};writer.add(input)
-        guard writer.startWriting() else {throw writer.error ?? VideoFailure(message:"视频编码无法启动。")}
+        guard writer.canAdd(input) else {throw VideoFailure(message:L("无法创建 H.264 编码器。", "Could not create the H.264 encoder."))};writer.add(input)
+        guard writer.startWriting() else {throw writer.error ?? VideoFailure(message:L("视频编码无法启动。", "Could not start video encoding."))}
         writer.startSession(atSourceTime:.zero)
         var cursor=0;var sourceTime=job.start
         let totalFrames=Self.totalFrames(timeline)
@@ -233,14 +235,14 @@ final class KeyboardMovie {
                 }
                 var optional:CVPixelBuffer?
                 let status=CVPixelBufferPoolCreatePixelBuffer(nil,adaptor.pixelBufferPool!,&optional)
-                guard status==kCVReturnSuccess,let buffer=optional else {throw VideoFailure(message:"无法分配视频缓冲区。")}
+                guard status==kCVReturnSuccess,let buffer=optional else {throw VideoFailure(message:L("无法分配视频缓冲区。", "Could not allocate a video buffer."))}
                 try movie.draw(time:t,sourceTime:sourceTime,job:job,buffer:buffer)
                 let deadline=Date().addingTimeInterval(30)
                 while !input.isReadyForMoreMediaData {
-                    if writer.status == .failed || Date()>deadline {throw writer.error ?? VideoFailure(message:"视频编码超时。")}
+                    if writer.status == .failed || Date()>deadline {throw writer.error ?? VideoFailure(message:L("视频编码超时。", "Video encoding timed out."))}
                     Thread.sleep(forTimeInterval:0.005)
                 }
-                guard adaptor.append(buffer,withPresentationTime:CMTime(value:Int64(frame),timescale:Int32(PlaybackTimeline.fps))) else {throw writer.error ?? VideoFailure(message:"写入视频帧失败。")}
+                guard adaptor.append(buffer,withPresentationTime:CMTime(value:Int64(frame),timescale:Int32(PlaybackTimeline.fps))) else {throw writer.error ?? VideoFailure(message:L("写入视频帧失败。", "Could not write a video frame."))}
                 if frame%10==0 || frame==totalFrames-1 {
                     let data=try JSONSerialization.data(withJSONObject:["frame":frame+1,"total":totalFrames,"presses":timeline.pressCount])
                     try data.write(to:movie.progressURL,options:.atomic)
@@ -249,7 +251,7 @@ final class KeyboardMovie {
         }
         input.markAsFinished();writer.endSession(atSourceTime:CMTime(value:Int64(totalFrames),timescale:Int32(PlaybackTimeline.fps)))
         let done=DispatchSemaphore(value:0);writer.finishWriting {done.signal()}
-        guard done.wait(timeout:.now()+60) == .success, writer.status == .completed else {throw writer.error ?? VideoFailure(message:"视频编码未完成。")}
+        guard done.wait(timeout:.now()+60) == .success, writer.status == .completed else {throw writer.error ?? VideoFailure(message:L("视频编码未完成。", "Video encoding did not complete."))}
         try FileManager.default.moveItem(at:temp,to:final)
         print("VIDEO_OK \(timeline.pressCount) presses \(totalFrames) frames \(final.path)")
     }

@@ -1,5 +1,7 @@
 # XAssistant Mac
 
+简体中文 | [English](README.en.md)
+
 macOS 本地键鼠统计与 3D 热力图按动视频导出工具。
 
 改编自 [xuhk/XAssistant](https://github.com/xuhk/XAssistant) 的功能与创意，使用 Swift 原生重新实现。这是非官方 macOS 版本，未复制上游 Windows 源码或素材，与原作者无隶属关系。本项目采用 [MIT 许可证](LICENSE)。
@@ -14,7 +16,26 @@ macOS 本地键鼠统计与 3D 热力图按动视频导出工具。
 - 热力图上限可随当前累计最高按动数动态变化，或固定为所选范围内最终最高按动数。
 - 片尾保留最终热力图 5 秒，摄像机缓慢旋转。
 
-## 构建与运行
+## 安装
+
+需要 **Apple Silicon Mac、macOS 13 或更新版本**。无需安装 Xcode。
+
+- **直接下载：** 打开 [最新版本](https://github.com/nope-gao/XAssistant-Mac/releases/latest)，下载 `XAssistant-Mac-arm64.zip`，解压后将 **XAssistant Mac.app** 放进 `~/Applications`。
+- **终端安装 / 更新：** 先退出正在运行的应用，再执行：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/nope-gao/XAssistant-Mac/main/install.sh -o /tmp/xassistant-install.sh && bash /tmp/xassistant-install.sh
+```
+
+安装脚本下载最新 Release、校验 SHA-256，并安装到 `~/Applications`，无需 sudo。记录数据会保留。以上方式需要仓库已经发布带安装包的 Release；GitHub 自动生成的 Source code ZIP 是源码，不是应用。
+
+当前构建采用 ad-hoc 签名，尚未通过 Apple 公证。如果 macOS 阻止打开，请确认来源后到“系统设置 → 隐私与安全性”选择“仍要打开”。随后按下方说明开启输入监控。
+
+## 界面语言
+
+窗口底部可选择 **简体中文 / English**，立即生效并保存。首次使用跟随系统首选语言（中文或英文）。菜单、导出界面、提示和视频字幕跟随选择；导出期间暂时锁定语言。系统权限弹窗跟随 macOS 语言。
+
+## 从源码构建
 
 需要 Apple Silicon Mac、macOS 13 或更新版本，以及 Xcode Command Line Tools。当前构建脚本仅生成 ARM64 应用；尚未完成各系统版本的兼容性验证。
 
@@ -59,3 +80,14 @@ tccutil reset ListenEvent local.jasongao.xassistantmac
 - Fn、多媒体键及安全输入场景可能无法完整记录；Touch ID 不作为普通按键记录。
 - 多键盘同时使用时，设备归属可能存在限制；长按自动重复不作为多次独立按动累计。
 - 本项目使用 SceneKit、Metal 和 AVFoundation 直接渲染视频，不依赖 Blender。
+
+## 发布新版（维护者）
+
+更新 `build.sh` 中的版本号和构建号，提交代码，然后推送对应标签：
+
+```bash
+git tag v0.3.6
+git push origin main --tags
+```
+
+GitHub Actions 会构建并运行自测，成功后发布包含应用 ZIP 和校验文件的 Release。后续发布请使用新的版本号。也可运行 `bash package.sh`，将 `dist/XAssistant-Mac-arm64.zip` 和 `dist/SHA256SUMS` 手动上传到对应 GitHub Release。

@@ -27,7 +27,7 @@ final class EventStore {
                 }
                 var data=try JSONEncoder().encode(event); data.append(10)
                 try self.handles[date]!.write(contentsOf:data)
-            } catch { self.onError?("按动记录保存失败：\(error.localizedDescription)") }
+            } catch { self.onError?(L("按动记录保存失败：\(error.localizedDescription)", "Could not save activity: \(error.localizedDescription)")) }
         }
     }
     func availableRange() throws -> (Date?,Date?) {
@@ -63,7 +63,7 @@ final class EventStore {
                 } catch {
                     // An interrupted last append can leave a partial final line; never hide corruption in the middle.
                     if index == lines.count-1 && data.last != 10 { continue }
-                    throw NSError(domain:"EventStore",code:1,userInfo:[NSLocalizedDescriptionKey:"事件文件损坏：\(file.lastPathComponent)，第 \(index+1) 行"])
+                    throw NSError(domain:"EventStore",code:1,userInfo:[NSLocalizedDescriptionKey:L("事件文件损坏：\(file.lastPathComponent)，第 \(index+1) 行", "Corrupt event file: \(file.lastPathComponent), line \(index+1)")])
                 }
             }
         }

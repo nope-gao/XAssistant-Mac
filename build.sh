@@ -3,7 +3,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 APP="$PWD/dist/XAssistant Mac.app"
 mkdir -p "$APP/Contents/MacOS"
-xcrun swiftc -swift-version 5 -O -target arm64-apple-macosx13.0 -module-cache-path /private/tmp/xassistant-swift-cache main.swift Keyboard.swift KeyboardView.swift EventTimeline.swift InputRecording.swift VideoRenderer.swift VideoExport.swift -o "$APP/Contents/MacOS/XAssistantMac" -framework Cocoa -framework SwiftUI -framework ServiceManagement -framework IOKit -framework SceneKit -framework AVFoundation -framework Metal
+xcrun swiftc -swift-version 5 -O -target arm64-apple-macosx13.0 -module-cache-path /private/tmp/xassistant-swift-cache main.swift Localization.swift Keyboard.swift KeyboardView.swift EventTimeline.swift InputRecording.swift VideoRenderer.swift VideoExport.swift -o "$APP/Contents/MacOS/XAssistantMac" -framework Cocoa -framework SwiftUI -framework ServiceManagement -framework IOKit -framework SceneKit -framework AVFoundation -framework Metal
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -12,8 +12,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <key>CFBundleIdentifier</key><string>local.jasongao.xassistantmac</string>
 <key>CFBundleName</key><string>XAssistant Mac</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>0.3.5</string>
-<key>CFBundleVersion</key><string>8</string>
+<key>CFBundleShortVersionString</key><string>0.3.6</string>
+<key>CFBundleVersion</key><string>9</string>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>LSUIElement</key><true/>
 <key>NSHighResolutionCapable</key><true/>
@@ -22,6 +22,15 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 PLIST
 mkdir -p "$APP/Contents/Resources"
 cp Resources/layouts.json "$APP/Contents/Resources/"
+for locale in en zh-Hans; do
+    mkdir -p "$APP/Contents/Resources/$locale.lproj"
+done
+cat > "$APP/Contents/Resources/en.lproj/InfoPlist.strings" <<'STRINGS'
+"NSInputMonitoringUsageDescription" = "Record key and mouse press/release times locally for animated playback. Key sequences may reveal typed content.";
+STRINGS
+cat > "$APP/Contents/Resources/zh-Hans.lproj/InfoPlist.strings" <<'STRINGS'
+"NSInputMonitoringUsageDescription" = "在本机保存键鼠按下与松开的时间和键位，用于动画回放；键位顺序可能推断输入内容。";
+STRINGS
 codesign --force --sign - "$APP"
 codesign --verify --strict "$APP"
 "$APP/Contents/MacOS/XAssistantMac" --self-test

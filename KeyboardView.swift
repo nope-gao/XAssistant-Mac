@@ -2,6 +2,7 @@ import SwiftUI
 import Cocoa
 
 struct KeyboardPanel: View {
+    @ObservedObject private var language = AppLanguage.shared
     @ObservedObject var tracker: Tracker
     var day: String
     @State var deviceSelection = "auto"
@@ -14,18 +15,18 @@ struct KeyboardPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Picker("设备", selection: $deviceSelection) {
-                    Text("自动 · 当前使用设备").tag("auto")
-                    ForEach(tracker.keyboards.values.sorted { $0.name < $1.name }) { p in Text(p.name + (p.connected ? "" : "（离线）")).tag(p.id) }
+                Picker(L("设备", "Device"), selection: $deviceSelection) {
+                    Text(L("自动 · 当前使用设备", "Auto · active keyboard")).tag("auto")
+                    ForEach(tracker.keyboards.values.sorted { $0.name < $1.name }) { p in Text(p.displayName + (p.connected ? "" : L("（离线）", " (offline)"))).tag(p.id) }
                 }.frame(maxWidth: .infinity)
-                Picker("布局", selection: $layoutSelection) {
-                    Text("自动识别").tag("auto"); Text("MacBook / 紧凑").tag("macbook"); Text("Mac 全尺寸").tag("mac-full")
+                Picker(L("布局", "Layout"), selection: $layoutSelection) {
+                    Text(L("自动识别", "Auto-detect")).tag("auto"); Text(L("MacBook / 紧凑", "MacBook / compact")).tag("macbook"); Text(L("Mac 全尺寸", "Mac full-size")).tag("mac-full")
                 }.frame(width: 150)
             }
             HStack {
-                Text(profile?.name ?? "等待键盘识别").font(.subheadline.bold())
+                Text(profile?.displayName ?? L("等待键盘识别", "Waiting for a keyboard")).font(.subheadline.bold())
 
-                Spacer(); Text("\(counts.values.reduce(0,+)) 次").monospacedDigit()
+                Spacer(); Text(L("\(counts.values.reduce(0,+)) 次", "\(counts.values.reduce(0,+)) presses")).monospacedDigit()
             }
             if let layout = layouts[layoutID] {
                 GeometryReader { geo in
@@ -42,13 +43,13 @@ struct KeyboardPanel: View {
                             .foregroundStyle(Color.black.opacity(0.82))
                             .background(color(count, maximum), in: RoundedRectangle(cornerRadius: 4))
                             .offset(x:k.x*unit,y:k.y*unit)
-                            .help("\(k.label)：\(count) 次")
+                            .help(L("\(k.label)：\(count) 次", "\(k.label): \(count) presses"))
                         }
                     }
                 }.frame(height: layout.width > 20 ? 145 : 220).frame(maxWidth: .infinity)
             }
-            Text("灰色 = 0 · 蓝 → 黄 → 橙 = 使用频率提高").font(.caption).foregroundStyle(.secondary)
-            Text("逐键记录从本次升级开始；包含左右修饰键。模型采用 ANSI 键帽，Touch ID 不计数，部分媒体键单列在导出总数中。").font(.caption).foregroundStyle(.secondary)
+            Text(L("灰色 = 0 · 蓝 → 黄 → 橙 = 使用频率提高", "Gray = 0 · Blue → yellow → orange = more presses")).font(.caption).foregroundStyle(.secondary)
+            Text(L("逐键记录从本次升级开始；包含左右修饰键。模型采用 ANSI 键帽，Touch ID 不计数，部分媒体键单列在导出总数中。", "Per-key counts include left and right modifiers. The model uses ANSI keycaps. Touch ID is not counted; some media keys only appear in export totals.")).font(.caption).foregroundStyle(.secondary)
         }.padding(14).background(Color.secondary.opacity(0.055), in: RoundedRectangle(cornerRadius: 12))
     }
     func color(_ count: Int, _ maxCount: Int) -> Color {

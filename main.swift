@@ -17,7 +17,7 @@ func dayKey(_ date: Date = Date()) -> String {
     let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; return f.string(from: date)
 }
 func duration(_ seconds: Double) -> String {
-    let n = Int(seconds); return "\(n / 3600) 小时 \(n % 3600 / 60) 分 \(n % 60) 秒"
+    let n = Int(seconds); return L("\(n / 3600) 小时 \(n % 3600 / 60) 分 \(n % 60) 秒", "\(n / 3600)h \(n % 3600 / 60)m \(n % 60)s")
 }
 final class Tracker: ObservableObject {
     @Published var days: [String: Day] = [:]
@@ -70,10 +70,10 @@ final class Tracker: ObservableObject {
                 catch {
                     let backup = folder.appendingPathComponent("statistics-unreadable-\(Int(Date().timeIntervalSince1970)).json")
                     try FileManager.default.copyItem(at: file, to: backup)
-                    self.error = "旧数据无法读取，已备份：\(backup.lastPathComponent)"
+                    self.error = L("旧数据无法读取，已备份：\(backup.lastPathComponent)", "Could not read old data. Backup: \(backup.lastPathComponent)")
                 }
             }
-        } catch { self.error = "数据目录错误：\(error.localizedDescription)" }
+        } catch { self.error = L("数据目录错误：\(error.localizedDescription)", "Data folder error: \(error.localizedDescription)") }
         previousApp = NSWorkspace.shared.frontmostApplication
         let center = NSWorkspace.shared.notificationCenter
         observers.append(center.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in self?.tick(); self?.inputEpoch += 1; self?.resetInput(); self?.sleeping = true; self?.save() })
@@ -94,7 +94,7 @@ final class Tracker: ObservableObject {
                     if let last=bounds.1 {self.latestEvent=max(last,self.latestEvent ?? last)}
                     self.boundsLoading=false
                 }
-            } catch {DispatchQueue.main.async {self?.boundsLoading=false;self?.error="无法读取记录时间：\(error.localizedDescription)"}}
+            } catch {DispatchQueue.main.async {self?.boundsLoading=false;self?.error=L("无法读取记录时间：\(error.localizedDescription)", "Could not read recording dates: \(error.localizedDescription)")}}
         }
         setupKeyboards()
         connectInput()
@@ -160,16 +160,17 @@ final class Tracker: ObservableObject {
             else { try SMAppService.mainApp.register() }
             login = SMAppService.mainApp.status == .enabled
             if SMAppService.mainApp.status == .requiresApproval { SMAppService.openSystemSettingsLoginItems() }
-        } catch { self.error = "登录启动设置失败：\(error.localizedDescription)" }
+        } catch { self.error = L("登录启动设置失败：\(error.localizedDescription)", "Could not change launch at login: \(error.localizedDescription)") }
     }
     func save() {
         eventStore.flush()
         do { let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]; try encoder.encode(days).write(to: file, options: .atomic); try encoder.encode(keyboards).write(to: folder.appendingPathComponent("keyboards.json"), options: .atomic) }
-        catch { self.error = "保存失败：\(error.localizedDescription)" }
+        catch { self.error = L("保存失败：\(error.localizedDescription)", "Save failed: \(error.localizedDescription)") }
     }
 
 }
 struct Dashboard: View {
+    @ObservedObject private var language = AppLanguage.shared
     @ObservedObject var tracker: Tracker
     @State private var details=false
     @State private var selected=dayKey()
@@ -179,8 +180,8 @@ struct Dashboard: View {
                 Text("XAssistant").font(.title3.weight(.semibold))
                 Spacer()
                 Circle().fill(tracker.paused ? Color.orange : (tracker.inputOK ? .green : .orange)).frame(width:6,height:6)
-                Text(tracker.paused ? "已暂停" : (tracker.inputOK ? "正在记录" : "等待权限")).font(.callout).foregroundStyle(.secondary)
-                Button(tracker.paused ? "继续" : "暂停") {tracker.togglePause()}.controlSize(.small)
+                Text(tracker.paused ? L("已暂停", "Paused") : (tracker.inputOK ? L("正在记录", "Recording") : L("等待权限", "Permission needed"))).font(.callout).foregroundStyle(.secondary)
+                Button(tracker.paused ? L("继续", "Resume") : L("暂停", "Pause")) {tracker.togglePause()}.controlSize(.small)
             }.padding(.horizontal,22).padding(.vertical,16)
             Divider()
             ScrollView {
@@ -188,20 +189,20 @@ struct Dashboard: View {
                     if !tracker.inputOK {
                         HStack(alignment:.center) {
                             VStack(alignment:.leading,spacing:3) {
-                                Text("开启输入监控后才能记录").font(.callout.weight(.medium))
-                                Text("允许 XAssistant Mac 记录键鼠按动。").font(.caption).foregroundStyle(.secondary)
+                                Text(L("开启输入监控后才能记录", "Enable Input Monitoring to record")).font(.callout.weight(.medium))
+                                Text(L("允许 XAssistant Mac 记录键鼠按动。", "Allow XAssistant Mac to record key presses and mouse clicks.")).font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer()
-                            Button("打开设置") {tracker.requestInput()}
+                            Button(L("打开设置", "Open Settings")) {tracker.requestInput()}
                         }.padding(12).background(Color.orange.opacity(0.08),in:RoundedRectangle(cornerRadius:8))
                     }
                     VideoExportPanel(tracker:tracker)
                     Divider()
-                    DisclosureGroup("统计与键盘热力图",isExpanded:$details) {
+                    DisclosureGroup(L("统计与键盘热力图", "Statistics & keyboard heatmap"),isExpanded:$details) {
                         VStack(alignment:.leading,spacing:12) {
-                            Picker("日期",selection:$selected) {ForEach(Array(Set(tracker.days.keys).union([dayKey()])).sorted().reversed(),id:\.self) {Text($0).tag($0)}}.frame(width:220)
+                            Picker(L("日期", "Date"),selection:$selected) {ForEach(Array(Set(tracker.days.keys).union([dayKey()])).sorted().reversed(),id:\.self) {Text($0).tag($0)}}.frame(width:220)
                             let d=tracker.days[selected] ?? Day()
-                            HStack {Text("键盘 \(d.keys)");Text("鼠标 \(d.left+d.right+d.other)");Spacer();Text("活跃 \(duration(d.active))").foregroundStyle(.secondary)}.font(.callout)
+                            HStack {Text(L("键盘 \(d.keys)", "Keys \(d.keys)"));Text(L("鼠标 \(d.left+d.right+d.other)", "Clicks \(d.left+d.right+d.other)"));Spacer();Text(L("活跃 \(duration(d.active))", "Active \(duration(d.active))")).foregroundStyle(.secondary)}.font(.callout)
                             KeyboardPanel(tracker:tracker,day:selected)
                             ForEach(d.apps.keys.sorted {(d.apps[$0]?.seconds ?? 0)>(d.apps[$1]?.seconds ?? 0)},id:\.self) {key in
                                 if let usage=d.apps[key] {HStack {Text(usage.name);Spacer();Text(duration(usage.seconds)).foregroundStyle(.secondary)}.font(.caption)}
@@ -213,11 +214,16 @@ struct Dashboard: View {
             }
             Divider()
             HStack {
-                Toggle("登录时启动",isOn:Binding(get:{tracker.login},set:{_ in tracker.toggleLogin()})).toggleStyle(.checkbox)
+                Toggle(L("登录时启动", "Launch at login"),isOn:Binding(get:{tracker.login},set:{_ in tracker.toggleLogin()})).toggleStyle(.checkbox)
                 Spacer()
-                Button("数据文件夹") {tracker.save();NSWorkspace.shared.open(tracker.folder)}.buttonStyle(.link)
+                Picker("Language / 语言", selection: $language.selection) {
+                    Text("简体中文").tag("zh-Hans")
+                    Text("English").tag("en")
+                }.labelsHidden().frame(width:110).disabled(tracker.exporting)
+                Button(L("数据文件夹", "Data folder")) {tracker.save();NSWorkspace.shared.open(tracker.folder)}.buttonStyle(.link)
             }.font(.caption).padding(.horizontal,22).padding(.vertical,12)
         }.frame(minWidth:600,minHeight:560)
+        .environment(\.locale, AppLanguage.locale)
     }
 }
 final class Delegate: NSObject, NSApplicationDelegate {
@@ -227,14 +233,18 @@ final class Delegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         tracker = Tracker()
         status = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        status.button?.image = NSImage(systemSymbolName: "chart.bar.xaxis", accessibilityDescription: "XAssistant 活动统计")
-        let menu = NSMenu()
-        for (title, action) in [("查看统计", #selector(show)), ("暂停 / 继续记录", #selector(pause)), ("输入监控权限…", #selector(permission)), ("退出 XAssistant", #selector(quit))] { let item = NSMenuItem(title: title, action: action, keyEquivalent: ""); item.target = self; menu.addItem(item) }
-        status.menu = menu
+        status.button?.image = NSImage(systemSymbolName: "chart.bar.xaxis", accessibilityDescription: L("XAssistant 活动统计", "XAssistant activity statistics"))
+        rebuildMenu()
+        NotificationCenter.default.addObserver(self, selector: #selector(rebuildMenu), name: .appLanguageChanged, object: nil)
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 620, height: 560), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         window.title = "XAssistant Mac"; window.isReleasedWhenClosed = false
         window.contentView = NSHostingView(rootView: Dashboard(tracker: tracker)); window.center()
         if !UserDefaults.standard.bool(forKey: "hasLaunched") { show(); UserDefaults.standard.set(true, forKey: "hasLaunched") }
+    }
+    @objc func rebuildMenu() {
+        let menu = NSMenu()
+        for (title, action) in [(L("查看统计", "Show dashboard"), #selector(show)), (L("暂停 / 继续记录", "Pause / resume recording"), #selector(pause)), (L("输入监控权限…", "Input Monitoring…"), #selector(permission)), (L("退出 XAssistant", "Quit XAssistant"), #selector(quit))] { let item = NSMenuItem(title: title, action: action, keyEquivalent: ""); item.target = self; menu.addItem(item) }
+        status.menu = menu
     }
     @objc func show() { window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true) }
     @objc func pause() { tracker.togglePause(); status.button?.image = NSImage(systemSymbolName: tracker.paused ? "pause.circle" : "chart.bar.xaxis", accessibilityDescription: "XAssistant") }
@@ -254,7 +264,17 @@ if let index=CommandLine.arguments.firstIndex(of:"--render-video"), CommandLine.
     let decoded = try JSONDecoder().decode([String: Day].self, from: data)
     precondition(decoded["2026-09-12"]?.keys == 3)
     precondition(decoded["2026-09-12"]?.apps["test"]?.seconds == 61)
+    precondition(AppLanguage.resolve(nil, preferred:["en-GB"]) == "en")
+    precondition(AppLanguage.resolve(nil, preferred:["zh-Hant"]) == "zh-Hans")
+    precondition(AppLanguage.resolve("en", preferred:["zh-Hans"]) == "en")
+    precondition(AppLanguage.resolve("invalid", preferred:["fr"]) == "en")
+    AppLanguage.renderLanguage = "zh-Hans"
     precondition(duration(3661) == "1 小时 1 分 1 秒")
+    precondition(L("现在", "Now") == "现在")
+    AppLanguage.renderLanguage = "en"
+    precondition(duration(3661) == "1h 1m 1s")
+    precondition(L("现在", "Now") == "Now")
+    AppLanguage.renderLanguage = nil
     let legacy = Data("{\"2026-09-12\":{\"keys\":12,\"left\":2,\"right\":0,\"other\":0,\"awake\":12,\"active\":5,\"apps\":{}}}".utf8)
     let migrated = try JSONDecoder().decode([String: Day].self, from: legacy)
     precondition(migrated["2026-09-12"]?.keys == 12 && migrated["2026-09-12"]?.deviceKeys == nil)
