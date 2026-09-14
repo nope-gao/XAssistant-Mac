@@ -1,6 +1,6 @@
 # XAssistant Mac
 
-简体中文 | [English](README.en.md)
+**简体中文** | [繁體中文](README.zh-Hant.md) | [English](README.en.md) | [日本語](README.ja.md) | [Español](README.es.md) | [Français](README.fr.md) | [Deutsch](README.de.md)
 
 macOS 本地键鼠统计与 3D 热力图按动视频导出工具。
 
@@ -30,7 +30,7 @@ curl -fsSL https://raw.githubusercontent.com/nope-gao/XAssistant-Mac/main/instal
 
 安装脚本下载最新 Release、校验 SHA-256，并检查新版是否满足已安装版本的签名要求；不兼容时停止更新，保留原应用。检查通过后安装到 `~/Applications`，无需 sudo。记录数据会保留。以上方式需要仓库已经发布带安装包的 Release；GitHub 自动生成的 Source code ZIP 是源码，不是应用。
 
-当前构建采用 ad-hoc 签名，尚未通过 Apple 公证。如果 macOS 阻止打开，请确认来源后到“系统设置 → 隐私与安全性”选择“仍要打开”。随后按下方说明开启输入监控。
+现有 v0.4.0 下载包采用 ad-hoc 签名，尚未通过 Apple 公证。如果 macOS 阻止打开，请确认来源后到“系统设置 → 隐私与安全性”选择“仍要打开”。随后按下方说明开启输入监控。
 
 ## 界面语言
 
@@ -61,7 +61,7 @@ ditto "dist/XAssistant Mac.app" "$HOME/Applications/XAssistant Mac.app"
 open "$HOME/Applications/XAssistant Mac.app"
 ```
 
-当前版本使用本地 ad-hoc 签名，未做 Apple Developer ID 签名或公证，适合从源码构建试用。
+默认本地构建使用 ad-hoc 签名，未做 Apple Developer ID 签名或公证，适合从源码构建试用。
 
 ## 使用与权限
 
@@ -79,7 +79,7 @@ tccutil reset ListenEvent local.jasongao.xassistantmac
 
 ## 本地数据与隐私
 
-数据保存在 `~/Library/Application Support/XAssistantMac/`，不主动上传，也不包含遥测。
+数据保存在 `~/Library/Application Support/XAssistantMac/`，不主动上传，也不包含遥测。安装脚本会连接 GitHub 下载版本。
 
 为支持动画回放，会保存按下/松开时间、物理键位、设备信息及事件顺序；还会记录应用名称、Bundle ID 和使用时长统计。不读取输入法最终文字、窗口标题、网页地址或鼠标坐标。**键位及其顺序仍可能推断输入内容，因此事件记录属于敏感数据；请勿公开上传数据目录。**
 

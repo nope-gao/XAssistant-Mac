@@ -1,6 +1,6 @@
 # XAssistant Mac
 
-[简体中文](README.md) | English
+[简体中文](README.md) | [繁體中文](README.zh-Hant.md) | **English** | [日本語](README.ja.md) | [Español](README.es.md) | [Français](README.fr.md) | [Deutsch](README.de.md)
 
 A local macOS keyboard and mouse activity tracker with animated 3D heatmap video exports.
 
@@ -30,7 +30,7 @@ curl -fsSL https://raw.githubusercontent.com/nope-gao/XAssistant-Mac/main/instal
 
 The installer downloads the latest release, verifies its SHA-256 checksum, and checks that the new app satisfies the installed app’s signing requirement before installing to `~/Applications` without sudo. Incompatible updates stop before replacing the existing app. Existing recordings are preserved. These methods require a published release with the app ZIP attached; GitHub's automatic Source code ZIP is not the app.
 
-Current builds are ad-hoc signed and not notarized by Apple. If macOS blocks the app, review its source and use **System Settings → Privacy & Security → Open Anyway**. Then enable Input Monitoring as described below.
+The existing v0.4.0 download is ad-hoc signed and not notarized by Apple. If macOS blocks the app, review its source and use **System Settings → Privacy & Security → Open Anyway**. Then enable Input Monitoring as described below.
 
 ## Interface language
 
@@ -61,7 +61,7 @@ ditto "dist/XAssistant Mac.app" "$HOME/Applications/XAssistant Mac.app"
 open "$HOME/Applications/XAssistant Mac.app"
 ```
 
-The current version uses local ad-hoc signing, not Apple Developer ID signing or notarization.
+Local builds use ad-hoc signing by default, not Apple Developer ID signing or notarization.
 
 ## Usage and permissions
 
