@@ -12,7 +12,7 @@ final class EventStore {
     let folder: URL
     private let queue = DispatchQueue(label: "XAssistant.events")
     private var handles: [String: FileHandle] = [:]
-    var onError: ((String) -> Void)?
+    var onError: ((LocalizedMessage) -> Void)?
     init(folder: URL) { self.folder=folder }
     func append(_ event: InputEvent) {
         queue.async {
@@ -27,7 +27,7 @@ final class EventStore {
                 }
                 var data=try JSONEncoder().encode(event); data.append(10)
                 try self.handles[date]!.write(contentsOf:data)
-            } catch { self.onError?(L("按动记录保存失败：\(error.localizedDescription)", "Could not save activity: \(error.localizedDescription)")) }
+            } catch { self.onError?(M("按动记录保存失败：\(error.localizedDescription)", "Could not save activity: \(error.localizedDescription)")) }
         }
     }
     func availableRange() throws -> (Date?,Date?) {

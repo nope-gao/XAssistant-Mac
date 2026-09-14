@@ -15,6 +15,7 @@ Adapted from the functionality and ideas of [xuhk/XAssistant](https://github.com
 - Include or exclude mouse clicks; choose speeds from 0.5× to 256×, including 128×.
 - Scale heatmap colors dynamically against the current highest cumulative press count, or use the final highest count in the selected range as a fixed maximum.
 - Hold the final heatmap for five seconds while the camera slowly rotates.
+- Play a synchronized sound for every press, with a distinct timbre per physical key and keyboard, mechanical, soft, or silent presets.
 
 ## Install
 
@@ -33,7 +34,15 @@ Current builds are ad-hoc signed and not notarized by Apple. If macOS blocks the
 
 ## Interface language
 
-Choose **English / 简体中文** at the bottom of the window. The choice applies immediately and is saved. On first launch, the app follows your preferred system language (Chinese or English). Menus, export controls, messages, and video captions follow this choice. Language selection is locked during an export. System permission dialogs follow the macOS language.
+The initial setting is **Follow system**. The app checks the ordered macOS preferred-language list and selects a supported match. Available languages: **简体中文, 繁體中文, English, 日本語, Español, Français, Deutsch**. English is used if none of your preferred languages are supported. Choose a language or return to Follow system at the bottom of the window; the preference is saved.
+
+The interface, menus, existing status messages, dates and numbers, mouse labels, function-key names, and video captions follow the selected language. Letter keys retain the physical ANSI layout. Videos keep the language selected when the export starts; manual switching is disabled during export. macOS controls the language of its own permission dialogs and underlying system error details.
+
+## Video sound
+
+Choose **Keyboard taps** (default), **Mechanical**, **Soft taps**, or **Silent**. Each physical key has a distinct, deterministic short timbre, triggered only on key down and aligned to the first animation frame showing the press. Dense presses overlap at higher speeds. Excluding the mouse also excludes its click sounds. The five-second outro remains quiet.
+
+Audio is synthesized locally. It does not use the microphone, record your real keyboard, or depend on external sound assets. Sound-enabled videos contain a 48 kHz AAC track; Silent exports have no audio track.
 
 ## Build from source
 
@@ -86,8 +95,8 @@ Animated playback requires press/release timestamps, physical key identifiers, d
 Update the version and build number in `build.sh`, commit the changes, and push a matching tag:
 
 ```bash
-git tag v0.3.6
+git tag v0.4.0
 git push origin main --tags
 ```
 
-GitHub Actions builds and runs self-tests, then publishes a release with the app ZIP and checksum file. Use a new version for each subsequent release. Alternatively, run `bash package.sh` and manually attach `dist/XAssistant-Mac-arm64.zip` and `dist/SHA256SUMS` to the matching GitHub release.
+Pushes to main build and verify translations, press timing, and actual audio/video encoding. Version tags publish a release after these checks pass with the app ZIP and checksum file. Use a new version for each subsequent release. Alternatively, run `bash package.sh` and manually attach `dist/XAssistant-Mac-arm64.zip` and `dist/SHA256SUMS` to the matching GitHub release.

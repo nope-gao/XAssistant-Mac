@@ -2,6 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 bash build.sh
+"dist/XAssistant Mac.app/Contents/MacOS/XAssistantMac" --media-self-test
 cd dist
 ditto -c -k --sequesterRsrc --keepParent "XAssistant Mac.app" XAssistant-Mac-arm64.zip
 shasum -a 256 XAssistant-Mac-arm64.zip > SHA256SUMS

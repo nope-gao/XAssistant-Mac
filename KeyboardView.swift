@@ -21,7 +21,7 @@ struct KeyboardPanel: View {
                 }.frame(maxWidth: .infinity)
                 Picker(L("布局", "Layout"), selection: $layoutSelection) {
                     Text(L("自动识别", "Auto-detect")).tag("auto"); Text(L("MacBook / 紧凑", "MacBook / compact")).tag("macbook"); Text(L("Mac 全尺寸", "Mac full-size")).tag("mac-full")
-                }.frame(width: 150)
+                }.frame(minWidth: 150, maxWidth: 240)
             }
             HStack {
                 Text(profile?.displayName ?? L("等待键盘识别", "Waiting for a keyboard")).font(.subheadline.bold())
@@ -36,14 +36,14 @@ struct KeyboardPanel: View {
                         ForEach(layout.keys) { k in
                             let count = counts[k.id] ?? 0
                             VStack(spacing: 2) {
-                                Text(k.label).font(.system(size: max(7,min(10,unit*0.19))))
-                                if k.h > 0.7 { Text(k.id == "touch" ? "—" : "\(count)").font(.system(size: max(8,min(12,unit*0.23)), weight: .semibold)).monospacedDigit() }
+                                Text(k.displayLabel).font(.system(size: max(7,min(10,unit*0.19))))
+                                if k.h > 0.7 { Text(k.id == "touch" ? "—" : localizedNumber(count)).font(.system(size: max(8,min(12,unit*0.23)), weight: .semibold)).monospacedDigit() }
                             }
                             .frame(width: k.w*unit-3, height: k.h*unit-3)
                             .foregroundStyle(Color.black.opacity(0.82))
                             .background(color(count, maximum), in: RoundedRectangle(cornerRadius: 4))
                             .offset(x:k.x*unit,y:k.y*unit)
-                            .help(L("\(k.label)：\(count) 次", "\(k.label): \(count) presses"))
+                            .help(L("\(k.displayLabel)：\(count) 次", "\(k.displayLabel): \(count) presses"))
                         }
                     }
                 }.frame(height: layout.width > 20 ? 145 : 220).frame(maxWidth: .infinity)

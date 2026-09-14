@@ -41,11 +41,12 @@ struct VideoExportPanel: View {
     @State private var speed=16.0
     @AppStorage("exportIncludeMouse") private var includeMouse=true
     @AppStorage("exportHeatMode") private var heatMode="dynamic"
+    @AppStorage("exportSound") private var sound="keyboard"
     @State private var options=false
     @State private var layoutOverride="auto"
     @State private var selectedDevice="auto"
     func stamp(_ date:Date) -> String {
-        let f=DateFormatter();f.dateFormat="yyyy/MM/dd HH:mm:ss";return f.string(from:date)
+        return localizedStamp(date)
     }
     var body: some View {
         TimelineView(.periodic(from:.now,by:1)) {clock in
@@ -69,14 +70,14 @@ struct VideoExportPanel: View {
                 }
                 VStack(spacing:12) {
                     HStack(spacing:12) {
-                        Text(L("从", "From")).frame(width:38,alignment:.leading).foregroundStyle(.secondary)
+                        Text(L("从", "From")).frame(minWidth:38,alignment:.leading).foregroundStyle(.secondary)
                         PreciseDateField(date:Binding(get:{start},set:{customStart=$0;fromBeginning=false}),minimum:first,maximum:now,label:L("开始时间", "Start time")).frame(height:26)
-                        Button(L("最开始", "Earliest")) {fromBeginning=true}.frame(width:70).disabled(first==nil).help(L("选择实际第一条按动记录", "Use the first recorded press"))
+                        Button(L("最开始", "Earliest")) {fromBeginning=true}.fixedSize().disabled(first==nil).help(L("选择实际第一条按动记录", "Use the first recorded press"))
                     }
                     HStack(spacing:12) {
-                        Text(L("到", "To")).frame(width:38,alignment:.leading).foregroundStyle(.secondary)
+                        Text(L("到", "To")).frame(minWidth:38,alignment:.leading).foregroundStyle(.secondary)
                         PreciseDateField(date:Binding(get:{end},set:{customEnd=$0;untilNow=false}),minimum:first,maximum:now,label:L("结束时间", "End time")).frame(height:26)
-                        Button(L("现在", "Now")) {untilNow=true}.frame(width:70).help(L("导出时自动取最新时间", "Use the current time when exporting"))
+                        Button(L("现在", "Now")) {untilNow=true}.fixedSize().help(L("导出时自动取最新时间", "Use the current time when exporting"))
                     }
                 }.disabled(tracker.exporting || first==nil)
                 HStack {
@@ -84,12 +85,15 @@ struct VideoExportPanel: View {
                     Spacer()
                     Picker(L("速度", "Speed"),selection:$speed) {
                         ForEach([0.5,1.0,2.0,4.0,8.0,16.0,32.0,64.0,128.0,256.0],id:\.self) {Text(String(format:"%g×",$0)).tag($0)}
-                    }.frame(width:135).disabled(tracker.exporting)
+                    }.frame(minWidth:135).disabled(tracker.exporting)
                 }
-                HStack(spacing:18) {
-                    Picker(L("鼠标", "Mouse"),selection:$includeMouse) {Text(L("包含", "Include")).tag(true);Text(L("不包含", "Exclude")).tag(false)}.frame(width:190)
+                VStack(alignment:.leading,spacing:10) {
+                    Picker(L("鼠标", "Mouse"),selection:$includeMouse) {Text(L("包含", "Include")).tag(true);Text(L("不包含", "Exclude")).tag(false)}
                     Picker(L("热力上限", "Heat scale"),selection:$heatMode) {Text(L("动态变化", "Dynamic")).tag("dynamic");Text(L("固定最高次数", "Fixed peak")).tag("fixed")}
                         .help(L("动态：随回放变化；固定：采用所选时间和设备范围内的最高累计次数。", "Dynamic: follows playback. Fixed: uses the final highest count for the selected time range and devices."))
+                }.disabled(tracker.exporting)
+                Picker(L("声音", "Sound"), selection:$sound) {
+                    ForEach(ClickSound.allCases) {preset in Text(preset.title).tag(preset.rawValue)}
                 }.disabled(tracker.exporting)
                 DisclosureGroup(L("设备与布局", "Device & layout"),isExpanded:$options) {
                     VStack(spacing:10) {
@@ -107,13 +111,13 @@ struct VideoExportPanel: View {
                     Spacer()
                     if tracker.exporting {Button(L("取消", "Cancel")) {tracker.cancelVideo()}}
                     Button(tracker.exporting ? L("正在导出…", "Exporting…") : L("导出视频到下载", "Export to Downloads")) {
-                        tracker.exportVideo(start:start,end:untilNow ? Date():end,speed:speed,layoutOverride:layoutOverride,deviceID:selectedDevice=="auto" ? nil:selectedDevice,includeMouse:includeMouse,heatMode:heatMode)
+                        tracker.exportVideo(start:start,end:untilNow ? Date():end,speed:speed,layoutOverride:layoutOverride,deviceID:selectedDevice=="auto" ? nil:selectedDevice,includeMouse:includeMouse,heatMode:heatMode,sound:sound)
                     }.buttonStyle(.borderedProminent).disabled(tracker.exporting || tracker.boundsLoading || invalid || outside)
                 }
                 if tracker.exporting {ProgressView(value:tracker.exportProgress)}
                 if !tracker.exportStatus.isEmpty {
                     HStack(alignment:.top) {
-                        Text(tracker.exportStatus).font(.caption).foregroundStyle(.secondary).lineLimit(3).textSelection(.enabled)
+                        Text(tracker.exportStatus.text).font(.caption).foregroundStyle(.secondary).lineLimit(3).textSelection(.enabled)
                         Spacer()
                         if !tracker.exporting,let url=tracker.lastVideoURL {Button(L("显示文件", "Show file")) {NSWorkspace.shared.activateFileViewerSelecting([url])}.buttonStyle(.link).font(.caption)}
                     }
@@ -126,14 +130,14 @@ extension Tracker {
     func cancelVideo() {
         exportCancelled=true
         videoTask?.terminate()
-        exportStatus=L("正在取消…", "Cancelling…")
+        exportStatus=M("正在取消…", "Cancelling…")
     }
-    func exportVideo(start: Date,end: Date,speed: Double,layoutOverride: String,deviceID: String?,includeMouse: Bool,heatMode: String) {
+    func exportVideo(start: Date,end: Date,speed: Double,layoutOverride: String,deviceID: String?,includeMouse: Bool,heatMode: String,sound: String = "keyboard") {
         guard !exporting else {return}
         let actualEnd=min(end,Date())
-        guard start<actualEnd else {exportStatus=L("开始时间必须早于结束时间，且不能晚于现在。", "Start time must be before end time and cannot be in the future.");return}
-        guard speed.isFinite && speed>=0.5 && speed<=256 else {exportStatus=L("请选择 0.5× 到 256× 的速度。", "Choose a speed from 0.5× to 256×.");return}
-        lastVideoURL=nil;exporting=true;exportCancelled=false;exportProgress=0;exportStatus=L("正在读取所选时间内的键盘和鼠标按动…", "Reading activity in the selected time range…")
+        guard start<actualEnd else {exportStatus=M("开始时间必须早于结束时间，且不能晚于现在。", "Start time must be before end time and cannot be in the future.");return}
+        guard speed.isFinite && speed>=0.5 && speed<=256 else {exportStatus=M("请选择 0.5× 到 256× 的速度。", "Choose a speed from 0.5× to 256×.");return}
+        lastVideoURL=nil;exporting=true;exportCancelled=false;exportProgress=0;exportStatus=M("正在读取所选时间内的键盘和鼠标按动…", "Reading activity in the selected time range…")
         save()
         let exportLanguage=AppLanguage.current
         let profiles=keyboards
@@ -158,26 +162,26 @@ extension Tracker {
                 try fm.createDirectory(at:downloads,withIntermediateDirectories:true)
                 let output=downloads.appendingPathComponent("XAssistant-\(formatter.string(from:start))-\(formatter.string(from:actualEnd))-\(String(format:"%g",speed))x-\(id.prefix(6)).mp4")
                 let progress=cache.appendingPathComponent("progress.json")
-                let job=VideoJob(events:events,start:start.timeIntervalSince1970,end:actualEnd.timeIntervalSince1970,speed:speed,layout:layout,deviceID:deviceID,output:output.path,progress:progress.path,includeMouse:includeMouse,heatMode:heatMode,language:exportLanguage)
+                let job=VideoJob(events:events,start:start.timeIntervalSince1970,end:actualEnd.timeIntervalSince1970,speed:speed,layout:layout,deviceID:deviceID,output:output.path,progress:progress.path,includeMouse:includeMouse,heatMode:heatMode,language:exportLanguage,sound:sound)
                 let jobURL=cache.appendingPathComponent("job.json")
                 try JSONEncoder().encode(job).write(to:jobURL,options:.atomic)
                 DispatchQueue.main.async {
                     guard let self else {return}
-                    if self.exportCancelled {try? fm.removeItem(at:cache);self.exporting=false;self.exportStatus=L("已取消。", "Cancelled.");return}
+                    if self.exportCancelled {try? fm.removeItem(at:cache);self.exporting=false;self.exportStatus=M("已取消。", "Cancelled.");return}
                     do {
                         guard let executable=Bundle.main.executableURL else {throw VideoFailure(message:L("找不到视频导出程序。", "Could not find the video exporter."))}
                         let task=Process();task.executableURL=executable;task.arguments=["--render-video",jobURL.path]
                         let log=cache.appendingPathComponent("render.log");fm.createFile(atPath:log.path,contents:nil)
                         let handle=try FileHandle(forWritingTo:log);task.standardOutput=handle;task.standardError=handle
                         self.videoTask=task
-                        self.exportStatus=L("\(timeline.pressCount) 次按动 · 预计视频 \(duration(Double(KeyboardMovie.totalFrames(timeline))/Double(PlaybackTimeline.fps))) · 仅生成 MP4 到下载", "\(timeline.pressCount) presses · Video length \(duration(Double(KeyboardMovie.totalFrames(timeline))/Double(PlaybackTimeline.fps))) · MP4 to Downloads")
+                        self.exportStatus=M("\(timeline.pressCount) 次按动 · 预计视频 \(duration(Double(KeyboardMovie.totalFrames(timeline))/Double(PlaybackTimeline.fps))) · 仅生成 MP4 到下载", "\(timeline.pressCount) presses · Video length \(duration(Double(KeyboardMovie.totalFrames(timeline))/Double(PlaybackTimeline.fps))) · MP4 to Downloads")
                         let exportStarted=Date()
                         self.videoProgressTimer=Timer.scheduledTimer(withTimeInterval:0.5,repeats:true) { [weak self] _ in
                             if let data=try? Data(contentsOf:progress),let p=try? JSONSerialization.jsonObject(with:data) as? [String:Int],let frame=p["frame"],let total=p["total"],total>0 {
                                 self?.exportProgress=Double(frame)/Double(total)
                                 let elapsed=Date().timeIntervalSince(exportStarted)
                                 let remaining=frame>0 ? elapsed*Double(total-frame)/Double(frame):0
-                                self?.exportStatus=L("成片 \(duration(Double(KeyboardMovie.totalFrames(timeline))/Double(PlaybackTimeline.fps))) · \(Int(Double(frame)*100/Double(total)))% · ", "Video \(duration(Double(KeyboardMovie.totalFrames(timeline))/Double(PlaybackTimeline.fps))) · \(Int(Double(frame)*100/Double(total)))% · ") + (elapsed<3 ? L("正在估算导出耗时…", "Estimating export time…") : L("预计还需 \(duration(remaining))", "About \(duration(remaining)) remaining"))
+                                self?.exportStatus=M("成片 \(duration(Double(KeyboardMovie.totalFrames(timeline))/Double(PlaybackTimeline.fps))) · \(Int(Double(frame)*100/Double(total)))% · ", "Video \(duration(Double(KeyboardMovie.totalFrames(timeline))/Double(PlaybackTimeline.fps))) · \(Int(Double(frame)*100/Double(total)))% · ") + (elapsed<3 ? M("正在估算导出耗时…", "Estimating export time…") : M("预计还需 \(duration(remaining))", "About \(duration(remaining)) remaining"))
                             }
                         }
                         task.terminationHandler={ [weak self] process in
@@ -186,21 +190,21 @@ extension Tracker {
                                 guard let self else {return}
                                 self.videoProgressTimer?.invalidate();self.videoProgressTimer=nil;self.videoTask=nil;self.exporting=false
                                 if self.exportCancelled {
-                                    self.exportStatus=L("已取消视频导出。", "Video export cancelled.");try? fm.removeItem(at:cache)
+                                    self.exportStatus=M("已取消视频导出。", "Video export cancelled.");try? fm.removeItem(at:cache)
                                 } else if process.terminationStatus==0 && fm.fileExists(atPath:output.path) {
-                                    self.exportProgress=1;self.lastVideoURL=output;self.exportStatus=L("视频已保存到下载文件夹。", "Video saved to Downloads.");try? fm.removeItem(at:cache)
+                                    self.exportProgress=1;self.lastVideoURL=output;self.exportStatus=M("视频已保存到下载文件夹。", "Video saved to Downloads.");try? fm.removeItem(at:cache)
                                     NSWorkspace.shared.activateFileViewerSelecting([output])
                                 } else {
                                     let message=(try? String(contentsOf:log,encoding:.utf8))?.components(separatedBy:"\n").first(where:{$0.contains("VIDEO_ERROR")}) ?? L("渲染进程未成功结束。", "The renderer did not finish successfully.")
-                                    self.exportStatus=L("导出失败：\(message) 日志：\(log.path)", "Export failed: \(message) Log: \(log.path)")
+                                    self.exportStatus=M("导出失败：\(message) 日志：\(log.path)", "Export failed: \(message) Log: \(log.path)")
                                     try? fm.removeItem(at:jobURL);try? fm.removeItem(at:cache.appendingPathComponent("rendering.mp4"))
                                 }
                             }
                         }
                         do {try task.run()} catch {try? handle.close();throw error}
-                    } catch {self.videoProgressTimer?.invalidate();self.videoTask=nil;self.exporting=false;self.exportStatus=L("导出失败：\(error.localizedDescription)", "Export failed: \(error.localizedDescription)");try? fm.removeItem(at:cache)}
+                    } catch {self.videoProgressTimer?.invalidate();self.videoTask=nil;self.exporting=false;self.exportStatus=M("导出失败：\(error.localizedDescription)", "Export failed: \(error.localizedDescription)");try? fm.removeItem(at:cache)}
                 }
-            } catch {DispatchQueue.main.async {self?.exporting=false;self?.exportStatus=error.localizedDescription}}
+            } catch {DispatchQueue.main.async {self?.exporting=false;self?.exportStatus=M("导出失败：\(error.localizedDescription)", "Export failed: \(error.localizedDescription)")}}
         }
     }
 }

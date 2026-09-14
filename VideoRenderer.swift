@@ -16,6 +16,7 @@ struct VideoJob: Codable {
     var includeMouse: Bool? = nil
     var heatMode: String? = nil
     var language: String? = nil
+    var sound: String? = nil
 }
 struct VideoFailure: Error, LocalizedError {
     var message: String
@@ -73,7 +74,7 @@ final class KeyboardMovie {
         for key in layout.keys {
             let name="key:"+key.id
             let cap=box(name,x:key.x+key.w/2,y:0.52,z:key.y+key.h/2,w:key.w-0.08,h:0.38,d:key.h-0.08,color:NSColor(calibratedWhite:0.85,alpha:1),bevel:0.06)
-            caps[name]=cap; bases[name]=cap.position.y; caption[name]=key.label
+            caps[name]=cap; bases[name]=cap.position.y; caption[name]=key.displayLabel
             let plane=SCNPlane(width:key.w-0.13,height:key.h-0.13)
             let label=SCNNode(geometry:plane); label.eulerAngles.x = -.pi/2; label.position=SCNVector3(0,0.22,0)
             plane.firstMaterial=SCNMaterial(); plane.firstMaterial!.lightingModel = .constant; plane.firstMaterial!.isDoubleSided=true
@@ -83,7 +84,7 @@ final class KeyboardMovie {
         if includeMouse {
         let body=SCNNode(geometry:SCNSphere(radius:1)); body.scale=SCNVector3(1.45,0.48,2.3); body.position=SCNVector3(mx,0.37,3.2)
         body.geometry!.firstMaterial=material(silver); scene.rootNode.addChildNode(body)
-        for (id,label,x,z,w,d) in [("0","LEFT",mx-0.62,2.4,1.12,1.65),("1","RIGHT",mx+0.62,2.4,1.12,1.65),("2","MIDDLE",mx,1.6,0.35,0.65),("3","BACK",mx-1.42,3.6,0.34,0.8),("4","NEXT",mx-1.42,4.5,0.34,0.8)] {
+        for (id,label,x,z,w,d) in [("0",L("左键","Left"),mx-0.62,2.4,1.12,1.65),("1",L("右键","Right"),mx+0.62,2.4,1.12,1.65),("2",L("中键","Middle"),mx,1.6,0.35,0.65),("3",L("后退","Back"),mx-1.42,3.6,0.34,0.8),("4",L("前进","Forward"),mx-1.42,4.5,0.34,0.8)] {
             let name="mouse:"+id
             let node=box(name,x:x,y:1.05,z:z,w:w,h:0.25,d:d,color:NSColor(calibratedWhite:0.84,alpha:1),bevel:0.09)
             caps[name]=node; bases[name]=node.position.y; caption[name]=label
@@ -120,7 +121,7 @@ final class KeyboardMovie {
         let label=caption[visual] ?? visual
         let labelSize=min(42.0,Double(h)*0.26,Double(w)/Double(max(label.count,1))*1.2)
         (label as NSString).draw(in:NSRect(x:2,y:Double(h)*0.52,width:Double(w)-4,height:Double(h)*0.45),withAttributes:[.font:NSFont.systemFont(ofSize:labelSize),.foregroundColor:NSColor(calibratedWhite:0.12,alpha:1),.paragraphStyle:paragraph])
-        (String(counts[visual] ?? 0) as NSString).draw(in:NSRect(x:2,y:Double(h)*0.04,width:Double(w)-4,height:Double(h)*0.48),withAttributes:[.font:NSFont.monospacedDigitSystemFont(ofSize:min(54,Double(h)*0.32),weight:.medium),.foregroundColor:NSColor(calibratedWhite:0.08,alpha:1),.paragraphStyle:paragraph])
+        (localizedNumber(counts[visual] ?? 0) as NSString).draw(in:NSRect(x:2,y:Double(h)*0.04,width:Double(w)-4,height:Double(h)*0.48),withAttributes:[.font:NSFont.monospacedDigitSystemFont(ofSize:min(54,Double(h)*0.32),weight:.medium),.foregroundColor:NSColor(calibratedWhite:0.08,alpha:1),.paragraphStyle:paragraph])
         NSGraphicsContext.restoreGraphicsState()
         let image=NSImage(size:NSSize(width:w,height:h));image.addRepresentation(rep)
         let material=plane.firstMaterial!
@@ -184,21 +185,25 @@ final class KeyboardMovie {
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current=NSGraphicsContext(cgContext:context,flipped:false)
         defer {NSGraphicsContext.restoreGraphicsState()}
-        let df=DateFormatter();df.dateFormat="yyyy-MM-dd HH:mm:ss"
+        let df=DateFormatter();df.locale=AppLanguage.locale;df.dateStyle = .medium;df.timeStyle = .medium
         func text(_ body:String,_ x:Double,_ y:Double,_ size:Double,_ bold:Bool=false) {
-            (body as NSString).draw(at:NSPoint(x:x,y:y),withAttributes:[.font:NSFont.systemFont(ofSize:size,weight:bold ? .semibold:.regular),.foregroundColor:NSColor(calibratedWhite:0.12,alpha:1)])
+            let weight:NSFont.Weight=bold ? .semibold:.regular
+            let measured=(body as NSString).size(withAttributes:[.font:NSFont.systemFont(ofSize:size,weight:weight)]).width
+            let available=(y<100 && x<1000) ? 930.0:Double(width)-x-60
+            let fitted=min(size,size*available/max(1,measured))
+            (body as NSString).draw(at:NSPoint(x:x,y:y),withAttributes:[.font:NSFont.systemFont(ofSize:fitted,weight:weight),.foregroundColor:NSColor(calibratedWhite:0.12,alpha:1)])
         }
         text((job.includeMouse ?? true) ? L("键盘 + 鼠标 · 按动延时摄影", "Keyboard + mouse · Activity timelapse") : L("键盘 · 按动延时摄影", "Keyboard · Activity timelapse"),70,978,36,true)
         text("\(df.string(from:Date(timeIntervalSince1970:job.start)))  →  \(df.string(from:Date(timeIntervalSince1970:job.end)))",70,936,23)
         if let label=job.testLabel {text(label,1450,978,26,true)}
-        text(L("热力：蓝 → 黄 → 橙 → 红", "Heat: blue → yellow → orange → red") + "   " + (fixedPeak == nil ? L("动态上限", "Dynamic max") : L("固定上限", "Fixed max")) + " \(peak)",1050,82,20)
+        text(L("热力：蓝 → 黄 → 橙 → 红", "Heat: blue → yellow → orange → red") + "   " + (fixedPeak == nil ? L("动态上限", "Dynamic max") : L("固定上限", "Fixed max")) + " " + localizedNumber(peak),1050,82,20)
         text(L("未使用为灰色 · 按下时键帽下沉", "Unused keys are gray · Pressed keys move down"),1110,46,20)
         text(L("原始时间  \(df.string(from:Date(timeIntervalSince1970:sourceTime)))", "Recorded at  \(df.string(from:Date(timeIntervalSince1970:sourceTime)))"),70,80,23)
         text(L("已播放 \(seenPresses) 次按动", "\(seenPresses) presses played") + "  ·  \(String(format:"%g",job.speed))×  ·  " + L("空档已移除", "Idle gaps removed"),70,42,22)
 
     }
     static func render(_ job: VideoJob) throws {
-        AppLanguage.renderLanguage = AppLanguage.resolve(job.language, preferred: Locale.preferredLanguages)
+        AppLanguage.renderLanguage = AppLanguage.resolve(job.language ?? UserDefaults.standard.string(forKey:"appLanguage"), preferred: AppLanguage.systemLanguages)
         let timeline=PlaybackTimeline(events:job.events,start:job.start,end:job.end,speed:job.speed,deviceID:job.deviceID,includeMouse:job.includeMouse ?? true)
         guard timeline.pressCount>0 else {throw VideoFailure(message:L("所选时间内没有可回放的按动事件。", "No replayable presses in the selected time range."))}
         guard let layout=loadLayouts()[job.layout] else {throw VideoFailure(message:L("键盘布局不存在。", "Keyboard layout not found."))}
@@ -219,10 +224,14 @@ final class KeyboardMovie {
         let attrs:[String:Any]=[kCVPixelBufferPixelFormatTypeKey as String:kCVPixelFormatType_32BGRA,kCVPixelBufferWidthKey as String:movie.width,kCVPixelBufferHeightKey as String:movie.height,kCVPixelBufferMetalCompatibilityKey as String:true,kCVPixelBufferIOSurfacePropertiesKey as String:[:],kCVPixelBufferCGImageCompatibilityKey as String:true,kCVPixelBufferCGBitmapContextCompatibilityKey as String:true]
         let adaptor=AVAssetWriterInputPixelBufferAdaptor(assetWriterInput:input,sourcePixelBufferAttributes:attrs)
         guard writer.canAdd(input) else {throw VideoFailure(message:L("无法创建 H.264 编码器。", "Could not create the H.264 encoder."))};writer.add(input)
+        let totalFrames=Self.totalFrames(timeline)
+        let preset=ClickSound(rawValue:job.sound ?? "keyboard") ?? .keyboard
+        let audio=try preset == .silent ? nil:ClickAudioTrack(writer:writer,timeline:timeline,preset:preset,totalFrames:totalFrames)
+        defer {if writer.status == .writing {writer.cancelWriting()}}
         guard writer.startWriting() else {throw writer.error ?? VideoFailure(message:L("视频编码无法启动。", "Could not start video encoding."))}
         writer.startSession(atSourceTime:.zero)
+        audio?.start(writer:writer)
         var cursor=0;var sourceTime=job.start
-        let totalFrames=Self.totalFrames(timeline)
         for frame in 0..<totalFrames {
             try autoreleasepool {
                 let t=Double(frame)/Double(PlaybackTimeline.fps)
@@ -239,7 +248,7 @@ final class KeyboardMovie {
                 try movie.draw(time:t,sourceTime:sourceTime,job:job,buffer:buffer)
                 let deadline=Date().addingTimeInterval(30)
                 while !input.isReadyForMoreMediaData {
-                    if writer.status == .failed || Date()>deadline {throw writer.error ?? VideoFailure(message:L("视频编码超时。", "Video encoding timed out."))}
+                    if writer.status != .writing || Date()>deadline {throw writer.error ?? VideoFailure(message:L("视频编码超时。", "Video encoding timed out."))}
                     Thread.sleep(forTimeInterval:0.005)
                 }
                 guard adaptor.append(buffer,withPresentationTime:CMTime(value:Int64(frame),timescale:Int32(PlaybackTimeline.fps))) else {throw writer.error ?? VideoFailure(message:L("写入视频帧失败。", "Could not write a video frame."))}
@@ -249,7 +258,11 @@ final class KeyboardMovie {
                 }
             }
         }
-        input.markAsFinished();writer.endSession(atSourceTime:CMTime(value:Int64(totalFrames),timescale:Int32(PlaybackTimeline.fps)))
+        input.markAsFinished()
+        if let audio {
+            guard audio.done.wait(timeout:.now()+30) == .success,writer.status == .writing else {throw VideoFailure(message:L("无法编码音频。","Could not encode audio."))}
+        }
+        writer.endSession(atSourceTime:CMTime(value:Int64(totalFrames),timescale:Int32(PlaybackTimeline.fps)))
         let done=DispatchSemaphore(value:0);writer.finishWriting {done.signal()}
         guard done.wait(timeout:.now()+60) == .success, writer.status == .completed else {throw writer.error ?? VideoFailure(message:L("视频编码未完成。", "Video encoding did not complete."))}
         try FileManager.default.moveItem(at:temp,to:final)
