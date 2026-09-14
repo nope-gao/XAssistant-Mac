@@ -28,7 +28,7 @@ macOS 本地键鼠统计与 3D 热力图按动视频导出工具。
 curl -fsSL https://raw.githubusercontent.com/nope-gao/XAssistant-Mac/main/install.sh -o /tmp/xassistant-install.sh && bash /tmp/xassistant-install.sh
 ```
 
-安装脚本下载最新 Release、校验 SHA-256，并安装到 `~/Applications`，无需 sudo。记录数据会保留。以上方式需要仓库已经发布带安装包的 Release；GitHub 自动生成的 Source code ZIP 是源码，不是应用。
+安装脚本下载最新 Release、校验 SHA-256，并检查新版是否满足已安装版本的签名要求；不兼容时停止更新，保留原应用。检查通过后安装到 `~/Applications`，无需 sudo。记录数据会保留。以上方式需要仓库已经发布带安装包的 Release；GitHub 自动生成的 Source code ZIP 是源码，不是应用。
 
 当前构建采用 ad-hoc 签名，尚未通过 Apple 公证。如果 macOS 阻止打开，请确认来源后到“系统设置 → 隐私与安全性”选择“仍要打开”。随后按下方说明开启输入监控。
 
@@ -92,11 +92,17 @@ tccutil reset ListenEvent local.jasongao.xassistantmac
 
 ## 发布新版（维护者）
 
+当前 v0.4.0 下载包仍是临时签名。只切换权限开关可能保留旧版签名记录，造成“开关开启但无记录”。已修正后续发布流程：**正式发布必须使用固定的 Developer ID Application 签名身份**，缺少证书时停止发布。
+
+在 GitHub Actions Secrets 配置 `SIGNING_CERTIFICATE_BASE64`（P12 证书的 Base64）、`SIGNING_CERTIFICATE_PASSWORD` 和 `SIGNING_IDENTITY`。证书和私钥不得提交到仓库；工作流只导入临时钥匙串并在结束时删除。同一身份应持续用于后续版本。首次从临时签名迁移到正式签名仍需重新授权一次。
+
 更新 `build.sh` 中的版本号和构建号，提交代码，然后推送对应标签：
 
 ```bash
-git tag v0.4.0
+git tag v0.4.1
 git push origin main --tags
 ```
 
-推送 main 时 GitHub Actions 会构建并验证翻译、按动时序和实际音视频编码；推送版本标签并通过验证后发布包含应用 ZIP 和校验文件的 Release。后续发布请使用新的版本号。也可运行 `bash package.sh`，将 `dist/XAssistant-Mac-arm64.zip` 和 `dist/SHA256SUMS` 手动上传到对应 GitHub Release。
+推送 main 时 GitHub Actions 会构建并验证翻译、按动时序和实际音视频编码；推送版本标签并通过验证后发布包含应用 ZIP 和校验文件的 Release。后续发布请使用新的版本号。也可在本机安装证书后运行 `SIGNING_IDENTITY="Developer ID Application: …" bash package.sh`，将 `dist/XAssistant-Mac-arm64.zip` 和 `dist/SHA256SUMS` 手动上传到对应 GitHub Release。
+
+本地测试允许 `ALLOW_ADHOC_PACKAGE=1 bash package.sh`，但这种包不能作为保持授权的升级包发布。固定安装路径和 Bundle ID 本身不能解决临时签名变化；详见 [Apple 关于签名要求与隐私权限的说明](https://developer.apple.com/documentation/technotes/tn3127-inside-code-signing-requirements)。

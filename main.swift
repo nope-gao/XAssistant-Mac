@@ -126,13 +126,23 @@ final class Tracker: ObservableObject {
         ticks += 1
         if ticks % 10 == 0 { save(); connectInput(); login = SMAppService.mainApp.status == .enabled }
     }
+    func disconnectEventTap() {
+        if let source {CFRunLoopRemoveSource(CFRunLoopGetMain(),source,.commonModes)}
+        if let tap {CGEvent.tapEnable(tap:tap,enable:false);CFMachPortInvalidate(tap)}
+        source=nil;tap=nil;inputOK=false
+    }
     func connectInput() {
         guard CGPreflightListenEventAccess() else {
-            if let tap { CGEvent.tapEnable(tap: tap, enable: false) }
-            if inputOK { inputEpoch+=1; resetInput() }; inputOK = false; keyboardMonitor.stop(); return
+            if inputOK {inputEpoch+=1;resetInput()}
+            disconnectEventTap();keyboardMonitor.stop();return
         }
-        if !keyboardMonitor.opened { keyboardMonitor.stop(); keyboardMonitor.start() }
-        if let tap { CGEvent.tapEnable(tap: tap, enable: true); inputOK = CGEvent.tapIsEnabled(tap: tap); return }
+        if !keyboardMonitor.opened {keyboardMonitor.stop();keyboardMonitor.start()}
+        if let tap, CFMachPortIsValid(tap) {
+            CGEvent.tapEnable(tap:tap,enable:true)
+            if CGEvent.tapIsEnabled(tap:tap) {inputOK=true;return}
+        }
+        // A disabled or invalid port must be recreated, not retried forever.
+        disconnectEventTap()
         let mask = [CGEventType.keyDown, .keyUp, .flagsChanged, .leftMouseDown, .leftMouseUp, .rightMouseDown, .rightMouseUp, .otherMouseDown, .otherMouseUp].reduce(CGEventMask(0)) { $0 | (CGEventMask(1) << $1.rawValue) }
         tap = CGEvent.tapCreate(tap: .cgSessionEventTap, place: .headInsertEventTap, options: .listenOnly, eventsOfInterest: mask, callback: { _, type, event, context in
             guard let context else { return Unmanaged.passUnretained(event) }
@@ -145,7 +155,7 @@ final class Tracker: ObservableObject {
         if let tap {
             source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
             CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
-            CGEvent.tapEnable(tap: tap, enable: true); inputOK = true
+            CGEvent.tapEnable(tap: tap, enable: true); inputOK = CGEvent.tapIsEnabled(tap:tap)
         } else { inputOK = false }
     }
     func requestInput() {

@@ -28,7 +28,7 @@ Requires **Apple Silicon and macOS 13 or later**. Xcode is not needed for a down
 curl -fsSL https://raw.githubusercontent.com/nope-gao/XAssistant-Mac/main/install.sh -o /tmp/xassistant-install.sh && bash /tmp/xassistant-install.sh
 ```
 
-The installer downloads the latest release, verifies its SHA-256 checksum, and installs it to `~/Applications` without sudo. Existing recordings are preserved. These methods require a published release with the app ZIP attached; GitHub's automatic Source code ZIP is not the app.
+The installer downloads the latest release, verifies its SHA-256 checksum, and checks that the new app satisfies the installed app’s signing requirement before installing to `~/Applications` without sudo. Incompatible updates stop before replacing the existing app. Existing recordings are preserved. These methods require a published release with the app ZIP attached; GitHub's automatic Source code ZIP is not the app.
 
 Current builds are ad-hoc signed and not notarized by Apple. If macOS blocks the app, review its source and use **System Settings → Privacy & Security → Open Anyway**. Then enable Input Monitoring as described below.
 
@@ -92,11 +92,17 @@ Animated playback requires press/release timestamps, physical key identifiers, d
 
 ## Publish an update (maintainers)
 
+The existing v0.4.0 download is still ad-hoc signed. Toggling Input Monitoring can leave an old signing requirement in place, causing an enabled switch with no recording. Future releases now **require a stable Developer ID Application signing identity**; missing signing credentials block publication.
+
+Configure GitHub Actions secrets `SIGNING_CERTIFICATE_BASE64` (Base64-encoded P12), `SIGNING_CERTIFICATE_PASSWORD`, and `SIGNING_IDENTITY`. Never commit a certificate’s private key. The workflow imports it into a temporary keychain and deletes that keychain afterward. Keep using the same signing identity for updates. The initial migration from ad-hoc to Developer ID signing still requires one permission refresh.
+
 Update the version and build number in `build.sh`, commit the changes, and push a matching tag:
 
 ```bash
-git tag v0.4.0
+git tag v0.4.1
 git push origin main --tags
 ```
 
-Pushes to main build and verify translations, press timing, and actual audio/video encoding. Version tags publish a release after these checks pass with the app ZIP and checksum file. Use a new version for each subsequent release. Alternatively, run `bash package.sh` and manually attach `dist/XAssistant-Mac-arm64.zip` and `dist/SHA256SUMS` to the matching GitHub release.
+Pushes to main build and verify translations, press timing, and actual audio/video encoding. Version tags publish a release after these checks pass with the app ZIP and checksum file. Use a new version for each subsequent release. Alternatively, run `SIGNING_IDENTITY="Developer ID Application: …" bash package.sh` with the certificate installed locally and manually attach `dist/XAssistant-Mac-arm64.zip` and `dist/SHA256SUMS` to the matching GitHub release.
+
+`ALLOW_ADHOC_PACKAGE=1 bash package.sh` is available for local testing only, not for publishing updates that retain permission. A stable path and bundle ID alone do not fix changing ad-hoc signatures. See [Apple’s explanation of signing requirements and privacy access](https://developer.apple.com/documentation/technotes/tn3127-inside-code-signing-requirements).

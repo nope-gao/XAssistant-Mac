@@ -17,7 +17,33 @@ jobs:
         run: |
           version=$(sed -n 's/.*CFBundleShortVersionString<\/key><string>\([^<]*\).*/\1/p' build.sh)
           test "$RELEASE_TAG" = "v$version"
+      - name: Import stable release identity
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          SIGNING_CERTIFICATE_BASE64: ${{ secrets.SIGNING_CERTIFICATE_BASE64 }}
+          SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.SIGNING_CERTIFICATE_PASSWORD }}
+          SIGNING_IDENTITY: ${{ secrets.SIGNING_IDENTITY }}
+        run: |
+          if [[ -z "$SIGNING_CERTIFICATE_BASE64" || -z "$SIGNING_CERTIFICATE_PASSWORD" || -z "$SIGNING_IDENTITY" || "$SIGNING_IDENTITY" == "-" ]]; then
+            echo 'Release blocked: configure a stable Developer ID Application identity. Ad-hoc releases invalidate Input Monitoring.'
+            exit 1
+          fi
+          certificate="$RUNNER_TEMP/signing.p12"
+          keychain="$RUNNER_TEMP/xassistant-signing.keychain-db"
+          password=$(openssl rand -hex 32)
+          echo "::add-mask::$password"
+          printf '%s' "$SIGNING_CERTIFICATE_BASE64" | base64 --decode > "$certificate"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          security import "$certificate" -k "$keychain" -P "$SIGNING_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$password" "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain" "$HOME/Library/Keychains/login.keychain-db"
+          echo "SIGNING_IDENTITY=$SIGNING_IDENTITY" >> "$GITHUB_ENV"
+          rm -f "$certificate"
       - name: Build, self-test and package
+        env:
+          ALLOW_ADHOC_PACKAGE: ${{ startsWith(github.ref, 'refs/tags/') && '0' || '1' }}
         run: bash package.sh
       - name: Publish download
         if: startsWith(github.ref, 'refs/tags/')
@@ -27,4 +53,10 @@ jobs:
         run: |
           gh release create "$RELEASE_TAG" dist/XAssistant-Mac-arm64.zip dist/SHA256SUMS \
             --verify-tag --title "XAssistant Mac $RELEASE_TAG" \
-            --notes 'Apple Silicon · macOS 13+. Download XAssistant-Mac-arm64.zip, unzip, and move the app to ~/Applications. Seven languages with Follow system by default. Synchronized per-key sounds with keyboard, mechanical, soft and silent presets. Enable Input Monitoring after launch. This build is ad-hoc signed, not notarized; macOS may require Open Anyway in Privacy & Security. See README for terminal installation and permission troubleshooting.'
+            --notes 'Apple Silicon · macOS 13+. Download XAssistant-Mac-arm64.zip, unzip, and move the app to ~/Applications. Seven languages with Follow system by default. Synchronized per-key sounds with keyboard, mechanical, soft and silent presets. Enable Input Monitoring after launch. This build is Developer ID signed; notarization may still be required; macOS may require Open Anyway in Privacy & Security. See README for terminal installation and permission troubleshooting.'
+      - name: Remove temporary signing keychain
+        if: always() && startsWith(github.ref, 'refs/tags/')
+        run: |
+          if [[ -f "$RUNNER_TEMP/xassistant-signing.keychain-db" ]]; then
+            security delete-keychain "$RUNNER_TEMP/xassistant-signing.keychain-db"
+          fi

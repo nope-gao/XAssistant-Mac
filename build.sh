@@ -12,8 +12,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <key>CFBundleIdentifier</key><string>local.jasongao.xassistantmac</string>
 <key>CFBundleName</key><string>XAssistant Mac</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>0.4.0</string>
-<key>CFBundleVersion</key><string>10</string>
+<key>CFBundleShortVersionString</key><string>0.4.1</string>
+<key>CFBundleVersion</key><string>11</string>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>LSUIElement</key><true/>
 <key>NSHighResolutionCapable</key><true/>
@@ -24,7 +24,13 @@ mkdir -p "$APP/Contents/Resources"
 cp Resources/layouts.json "$APP/Contents/Resources/"
 cp Resources/localizations.json "$APP/Contents/Resources/"
 "$APP/Contents/MacOS/XAssistantMac" --write-localizations
-codesign --force --sign - "$APP"
+signing_identity="${SIGNING_IDENTITY:--}"
+if [[ "$signing_identity" == "-" ]]; then
+    echo 'Local ad-hoc build: replacing an installed version may invalidate Input Monitoring.' >&2
+    codesign --force --sign - "$APP"
+else
+    codesign --force --options runtime --timestamp --sign "$signing_identity" "$APP"
+fi
 codesign --verify --strict "$APP"
 "$APP/Contents/MacOS/XAssistantMac" --self-test
 echo "$APP"

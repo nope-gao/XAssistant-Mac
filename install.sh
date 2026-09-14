@@ -44,6 +44,17 @@ sourceApp="$work/unpacked/XAssistant Mac.app"
 codesign --verify --deep --strict "$sourceApp"
 bundleID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$sourceApp/Contents/Info.plist")"
 [[ "$bundleID" == local.jasongao.xassistantmac ]] || { echo 'Unexpected app bundle.' >&2; exit 1; }
+# TCC grants are bound to a code requirement, not just the bundle ID or filename.
+# Test the downloaded app against the installed app's requirement before replacing anything.
+if [[ -d "$app" ]]; then
+    current_requirement="$(codesign -d -r- "$app" 2>&1 | sed -n -E 's/^#? ?designated => //p')"
+    if [[ -z "$current_requirement" ]] || ! codesign --verify --strict --test-requirement "=$current_requirement" "$sourceApp" 2>/dev/null; then
+        echo 'Update stopped: the new signing identity would invalidate Input Monitoring. Your installed app and recordings are unchanged.' >&2
+        echo '已停止更新：新版签名不兼容现有输入监控授权，当前应用和记录均未改动。' >&2
+        echo 'Use a release signed with the same Developer ID. Changing signing identity requires authorizing the new app once in System Settings.' >&2
+        exit 1
+    fi
+fi
 mkdir -p "$HOME/Applications"
 stage="$(mktemp -d "$HOME/Applications/.xassistant-install.XXXXXX")"
 ditto "$sourceApp" "$stage/new.app"
